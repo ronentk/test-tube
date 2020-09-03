@@ -1,4 +1,5 @@
 import contextlib
+from pathlib import Path
 import json
 import os
 import shutil
@@ -334,7 +335,7 @@ class Experiment(SummaryWriter):
         # file name
         self.__save_images(self.metrics)
         metrics_file_path = self.get_data_path(self.name, self.version) + '/metrics.csv'
-        meta_tags_path = self.get_data_path(self.name, self.version) + '/meta_tags.csv'
+        meta_tags_path = self.get_data_path(self.name, self.version) + '/meta_tags.json'
 
         obj = {
             'name': self.name,
@@ -353,9 +354,9 @@ class Experiment(SummaryWriter):
                 json.dump(obj, file, ensure_ascii=False)
 
         # save the metatags file
-        df = pd.DataFrame({'key': list(self.tags.keys()), 'value': list(self.tags.values())})
         with atomic_write(meta_tags_path) as tmp_path:
-            df.to_csv(tmp_path, index=False)
+            f = Path(tmp_path)
+            json.dump(self.tags, f.open(mode="w"))
 
         # save the metrics data
         df = pd.DataFrame(self.metrics)
@@ -433,13 +434,15 @@ class Experiment(SummaryWriter):
             self.exp_hash = data['exp_hash']
 
         # load .tags file
-        meta_tags_path = self.get_data_path(self.name, self.version) + '/meta_tags.csv'
-        df = pd.read_csv(meta_tags_path)
-        self.tags_list = df.to_dict(orient='records')
-        self.tags = {}
-        for d in self.tags_list:
-            k, v = d['key'], d['value']
-            self.tags[k] = v
+        meta_tags_path = Path(self.get_data_path(self.name, self.version) + '/meta_tags.json')
+        try:
+            tags = json.load(meta_tags_path.open())
+        except ValueError: # failed to decode json
+            tags = {}
+        self.tags = tags
+        # for d in self.tags_list:
+        #     k, v = d['key'], d['value']
+        #     self.tags[k] = v
 
         # load metrics
         metrics_file_path = self.get_data_path(self.name, self.version) + '/metrics.csv'
